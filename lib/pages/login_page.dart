@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../core/customer_auth_state.dart';
+import '../core/supabase_config.dart';
 import '../core/theme.dart';
 import '../core/responsive.dart';
 
@@ -30,7 +31,25 @@ class _LoginPageState extends State<LoginPage> {
       _submitting = false;
       _error = error;
     });
-    if (error == null) context.go('/profile');
+    if (error != null) return;
+
+    // One login page for everyone — check the role on this same row and
+    // route straight to the right place instead of making an admin find
+    // a separate admin URL.
+    final userId = widget.authState.userId;
+    if (userId != null) {
+      try {
+        final profile = await supabase.from('profiles').select('role').eq('id', userId).maybeSingle();
+        if (profile != null && profile['role'] == 'admin') {
+          if (mounted) context.go('/admin');
+          return;
+        }
+      } catch (_) {
+        // Fall through to the normal profile page if this check hiccups —
+        // an admin can still get to /admin manually either way.
+      }
+    }
+    if (mounted) context.go('/profile');
   }
 
   @override
