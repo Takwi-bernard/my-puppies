@@ -2,10 +2,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../core/responsive.dart';
-import '../../../core/supabase_config.dart';
-import '../../../core/theme.dart';
-import '../../../models/testimonial.dart';
+import '../../core/responsive.dart';
+import '../../core/supabase_config.dart';
+import '../../core/theme.dart';
+import '../../models/testimonial.dart';
 
 class AdminTestimonialFormPage extends StatefulWidget {
   final String? testimonialId;
@@ -58,9 +58,10 @@ class _AdminTestimonialFormPageState extends State<AdminTestimonialFormPage> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final file = await picker.pickImage(
-      source: ImageSource.gallery,
-      imageQuality: 85);
+    final file = await picker.pickImage(imageQuality: 85,
+    source: ImageSource.gallery
+    
+    );
     if (file == null) return;
     final bytes = await file.readAsBytes();
     final ext = file.name.split('.').last;
@@ -119,7 +120,11 @@ class _AdminTestimonialFormPageState extends State<AdminTestimonialFormPage> {
       }
 
       if (!mounted) return;
-      context.pop(true);
+      if (context.canPop()) {
+        context.pop(true);
+      } else {
+        context.go('/admin/testimonials');
+      }
     } catch (e) {
       debugPrint('Submit failed: $e');
       setState(() => _error = "Couldn't save this story. Please try again.");

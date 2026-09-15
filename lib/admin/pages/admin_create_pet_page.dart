@@ -2,9 +2,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../core/responsive.dart';
-import '../../../core/supabase_config.dart';
-import '../../../core/theme.dart';
+import 'package:uuid/uuid.dart';
+import '../../core/responsive.dart';
+import '../../core/supabase_config.dart';
+import '../../core/theme.dart';
 
 class _PickedImage {
   final XFile file;
@@ -62,31 +63,55 @@ class _AdminCreatePetPageState extends State<AdminCreatePetPage> {
       _error = null;
     });
 
-    try {
-      final petInsert = await supabase
-          .from('pets')
-          .insert({
-            'name': _nameController.text.trim(),
-            'species': _species,
-            'breed': _breedController.text.trim().isEmpty ? null : _breedController.text.trim(),
-            'age_category': _ageCategory,
-            'gender': _gender,
-            'size': _size,
-            'color': _colorController.text.trim().isEmpty ? null : _colorController.text.trim(),
-            'location_city': _cityController.text.trim().isEmpty ? null : _cityController.text.trim(),
-            'location_state': _stateController.text.trim().isEmpty ? null : _stateController.text.trim(),
-            'bio': _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
-            'adoption_fee': double.tryParse(_feeController.text.trim()),
-            'status': 'available',
-          })
-          .select()
-          .single();
+    bool success = false;
+    String? photoWarning;
 
-      final petId = petInsert['id'] as String;
+    try {
+      // Generate the ID ourselves rather than asking the server to hand
+      // one back. If the network response to the insert gets lost (e.g.
+      // the tab gets backgrounded mid-request on mobile — switching to
+      // another app is a common trigger), we can still verify whether
+      // the write actually landed instead of assuming it failed.
+      final petId = const Uuid().v4();
+      final petData = {
+        'id': petId,
+        'name': _nameController.text.trim(),
+        'species': _species,
+        'breed': _breedController.text.trim().isEmpty ? null : _breedController.text.trim(),
+        'age_category': _ageCategory,
+        'gender': _gender,
+        'size': _size,
+        'color': _colorController.text.trim().isEmpty ? null : _colorController.text.trim(),
+        'location_city': _cityController.text.trim().isEmpty ? null : _cityController.text.trim(),
+        'location_state': _stateController.text.trim().isEmpty ? null : _stateController.text.trim(),
+        'bio': _bioController.text.trim().isEmpty ? null : _bioController.text.trim(),
+        'adoption_fee': double.tryParse(_feeController.text.trim()),
+        'status': 'available',
+      };
+
+      bool petCreated = false;
+      try {
+        await supabase.from('pets').insert(petData);
+        petCreated = true;
+      } catch (e) {
+        debugPrint('Pet insert call errored, verifying whether it actually landed: $e');
+        try {
+          final check = await supabase.from('pets').select('id').eq('id', petId).maybeSingle();
+          petCreated = check != null;
+        } catch (_) {
+          petCreated = false;
+        }
+      }
+
+      if (!petCreated) {
+        if (mounted) {
+          setState(() => _error = "Couldn't post this dog. Please check your connection and try again.");
+        }
+        return;
+      }
 
       String? primaryUrl;
       int uploadedCount = 0;
-      String? photoWarning;
       try {
         for (var i = 0; i < _images.length; i++) {
           final img = _images[i];
@@ -117,15 +142,29 @@ class _AdminCreatePetPageState extends State<AdminCreatePetPage> {
       }
 
       if (!mounted) return;
-      if (photoWarning != null) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(photoWarning), backgroundColor: AppColors.orange));
-      }
-      context.pop(true);
+
+      success = true;
     } catch (e) {
       debugPrint('Pet creation failed: $e');
       setState(() => _error = "Couldn't post this dog. Please check your connection and try again.");
     } finally {
       if (mounted) setState(() => _submitting = false);
+    }
+
+    // Navigation happens AFTER the try/catch above, deliberately outside
+    // it — a navigation hiccup (e.g. this page has nothing underneath it
+    // on the stack) must never get mislabeled as "the dog failed to
+    // post." The dog is already saved by this point; canPop() avoids
+    // the exception entirely instead of hoping pop() never throws.
+    if (success && mounted) {
+      if (photoWarning != null) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(photoWarning), backgroundColor: AppColors.orange));
+      }
+      if (context.canPop()) {
+        context.pop(true);
+      } else {
+        context.go('/admin/pets');
+      }
     }
   }
 

@@ -2,10 +2,10 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
-import '../../../core/responsive.dart';
-import '../../../core/supabase_config.dart';
-import '../../../core/theme.dart';
-import '../../../widgets/friendly_error.dart';
+import '../../core/responsive.dart';
+import '../../core/supabase_config.dart';
+import '../../core/theme.dart';
+import '../../widgets/friendly_error.dart';
 
 class _PhotoSlot {
   final String? photoId;
@@ -181,7 +181,11 @@ class _AdminEditPetPageState extends State<AdminEditPetPage> {
       }
 
       if (!mounted) return;
-      context.pop(true);
+      if (context.canPop()) {
+        context.pop(true);
+      } else {
+        context.go('/admin/pets');
+      }
     } catch (e) {
       debugPrint('Edit failed for ${widget.petId}: $e');
       setState(() => _submitError = "Couldn't save these changes. Please try again.");
